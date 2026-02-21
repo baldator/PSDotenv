@@ -2,29 +2,25 @@
 # Pester tests for PSDotEnv module with 100% code coverage
 
 BeforeAll {
-    # Import the module - handle both Windows PowerShell and PowerShell Core
-    # $PSScriptRoot can be null in some PowerShell contexts
+    # Import the module - use $PSScriptRoot if available, otherwise use Get-Location
+    # This handles both Windows PowerShell, PowerShell Core, and CI environments
+    $ModulePath = $null
+    
+    # Try Pester 5's automatic file discovery first
     if ($PSScriptRoot) {
         $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath "PSDotEnv.psm1"
-    } else {
-        # Fallback: try to get the module path from the current location
-        $ModulePath = Join-Path -Path $PSCommandPath -ChildPath "PSDotEnv.psm1"
-        if (-not (Test-Path $ModulePath)) {
-            # Try getting it from the call stack
-            $ModulePath = $MyInvocation.MyCommand.Path
-            if ($ModulePath) {
-                $ModulePath = Join-Path -Path (Split-Path -Parent $ModulePath) -ChildPath "PSDotEnv.psm1"
-            }
-        }
-        # Last resort: use current directory
-        if (-not (Test-Path $ModulePath)) {
-            $ModulePath = Join-Path -Path (Get-Location) -ChildPath "PSDotEnv.psm1"
-        }
     }
+    
+    # Fallback: use current directory (works in CI/CD)
+    if (-not $ModulePath -or -not (Test-Path $ModulePath)) {
+        $ModulePath = Join-Path -Path (Get-Location) -ChildPath "PSDotEnv.psm1"
+    }
+    
     Import-Module -Name $ModulePath -Force
 
-    # Create a temporary directory for test .env files (compatible with PS 5.1+)
-    $script:TestDir = Join-Path -Path $env:TEMP -ChildPath "PSDotEnv.Tests.$(Get-Random)"
+    # Create a temporary directory for test .env files (compatible with PS 5.1+ and Linux)
+    $TempPath = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } elseif ($env:TMP) { $env:TMP } else { '/tmp' }
+    $script:TestDir = Join-Path -Path $TempPath -ChildPath "PSDotEnv.Tests.$(Get-Random)"
     New-Item -Path $script:TestDir -ItemType Directory -Force | Out-Null
     
     # Helper function to create a .env file
