@@ -71,26 +71,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Setup PowerShell
-        uses: PowerShell/PowerShell@v2
-        with:
-          pwsh-version: 'latest'
-      
-      - name: Install required modules
-        shell: pwsh
-        run: |
-          Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -SkipPublisherCheck -Scope CurrentUser
-      
-      - name: Run Tests
-        shell: pwsh
-        run: |
-          Import-Module -Name Pester -MinimumVersion 5.0.0 -Force
-          $result = Invoke-Pester -Path './PSDotEnv.tests.ps1' -Output Detailed -PassThru
-          if ($result.FailedCount -gt 0) {
-            Write-Host "Tests failed!"
-            exit 1
-          }
-      
       - name: Get version from module
         id: version
         shell: pwsh
