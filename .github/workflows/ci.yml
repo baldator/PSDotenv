@@ -1,0 +1,125 @@
+# CI/CD Pipeline for PSDotEnv
+# Runs tests on Windows and Ubuntu, and publishes to PowerShell Gallery
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        pwsh: 
+          - '7.4'
+          - 'latest'
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell@v2
+        with:
+          pwsh-version: ${{ matrix.pwsh }}
+      
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          if (!(Get-Module -ListAvailable -Name Pester)) {
+            Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -SkipPublisherCheck -Scope CurrentUser
+          }
+      
+      - name: Run Tests
+        shell: pwsh
+        run: |
+          Import-Module -Name Pester -MinimumVersion 5.0.0 -Force
+          $result = Invoke-Pester -Path './PSDotEnv.tests.ps1' -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Host "Tests failed!"
+            exit 1
+          }
+      
+      - name: Check Code Coverage
+        shell: pwsh
+        run: |
+          Import-Module -Name Pester -MinimumVersion 5.0.0 -Force
+          $result = Invoke-Pester -Path './PSDotEnv.tests.ps1' -Output Detailed -PassThru
+          
+          # Calculate coverage
+          $totalCommands = ($result.CodeCoverage | Measure-Object).Count
+          $coveredCommands = ($result.CodeCoverage | Where-Object { $_.LineVisits -gt 0 } | Measure-Object).Count
+          $coveragePercent = if ($totalCommands -gt 0) { ($coveredCommands / $totalCommands) * 100 } else { 0 }
+          
+          Write-Host "Code Coverage: $coveragePercent% ($coveredCommands/$totalCommands commands)"
+          
+          if ($coveragePercent -lt 100) {
+            Write-Host "Warning: Code coverage is below 100%"
+          }
+
+  publish:
+    name: Publish to PowerShell Gallery
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell@v2
+        with:
+          pwsh-version: 'latest'
+      
+      - name: Install required modules
+        shell: pwsh
+        run: |
+          Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -SkipPublisherCheck -Scope CurrentUser
+      
+      - name: Run Tests
+        shell: pwsh
+        run: |
+          Import-Module -Name Pester -MinimumVersion 5.0.0 -Force
+          $result = Invoke-Pester -Path './PSDotEnv.tests.ps1' -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Host "Tests failed!"
+            exit 1
+          }
+      
+      - name: Get version from module
+        id: version
+        shell: pwsh
+        run: |
+          $manifest = Import-PowerShellDataFile -Path './PSDotEnv.psd1' -ErrorAction SilentlyContinue
+          if ($manifest) {
+            $version = $manifest.ModuleVersion
+          } else {
+            # Extract version from psm1 header
+            $content = Get-Content './PSDotEnv.psm1' -Raw
+            if ($content -match '@{.*?ModuleVersion\s*=\s*[''"]([0-9.]+)[''"]') {
+              $version = $matches[1]
+            } else {
+              $version = "1.0.0"
+            }
+          }
+          Write-Host "Version: $version"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+      
+      - name: Publish to PowerShell Gallery
+        if: env:PSGALLERY_API_KEY != ''
+        shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          # Publish to Gallery
+          Publish-Module -Path './PSDotEnv.psm1' -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose -Exclude '*.jpg', '*.png', '*.md'
