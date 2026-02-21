@@ -2,8 +2,25 @@
 # Pester tests for PSDotEnv module with 100% code coverage
 
 BeforeAll {
-    # Import the module
-    $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath "PSDotEnv.psm1"
+    # Import the module - handle both Windows PowerShell and PowerShell Core
+    # $PSScriptRoot can be null in some PowerShell contexts
+    if ($PSScriptRoot) {
+        $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath "PSDotEnv.psm1"
+    } else {
+        # Fallback: try to get the module path from the current location
+        $ModulePath = Join-Path -Path $PSCommandPath -ChildPath "PSDotEnv.psm1"
+        if (-not (Test-Path $ModulePath)) {
+            # Try getting it from the call stack
+            $ModulePath = $MyInvocation.MyCommand.Path
+            if ($ModulePath) {
+                $ModulePath = Join-Path -Path (Split-Path -Parent $ModulePath) -ChildPath "PSDotEnv.psm1"
+            }
+        }
+        # Last resort: use current directory
+        if (-not (Test-Path $ModulePath)) {
+            $ModulePath = Join-Path -Path (Get-Location) -ChildPath "PSDotEnv.psm1"
+        }
+    }
     Import-Module -Name $ModulePath -Force
 
     # Create a temporary directory for test .env files (compatible with PS 5.1+)
