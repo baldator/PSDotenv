@@ -95,5 +95,12 @@ jobs:
         env:
           PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
         run: |
-          # Publish to Gallery
-          Publish-Module -Path './PSDotEnv.psm1' -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose
+          $ModulePath = "./"
+
+          # copy the module files to the release folder
+          
+          # Verify Manifest
+          Test-ModuleManifest -Path "$ModulePath/PSDotEnv.psd1"
+          
+          # Publish
+          Publish-Module -Path $ModulePath -NuGetApiKey $env:NUGET_KEY -Verbose -Exclude @('*.jpg','*.png','*.md', '.gitignore')
