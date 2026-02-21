@@ -96,4 +96,4 @@ jobs:
           PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
         run: |
           # Publish to Gallery
-          Publish-Module -Path './PSDotEnv.psm1' -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose -Exclude '*.jpg'
+          Publish-Module -Path './PSDotEnv.psm1' -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose -Exclude @('*.jpg','*.png','*.md')
