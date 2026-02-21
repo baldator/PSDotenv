@@ -116,7 +116,6 @@ jobs:
           echo "version=$version" >> $env:GITHUB_OUTPUT
       
       - name: Publish to PowerShell Gallery
-        if: env:PSGALLERY_API_KEY != ''
         shell: pwsh
         env:
           PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
